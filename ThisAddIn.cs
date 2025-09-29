@@ -15,12 +15,16 @@ namespace SendGuard
     {
         private static Policy _policy = Policy.Default();
         private FileSystemWatcher _watcher;
+        private const bool DISABLE_STARTWATCH = true; // Disable the StartWatch system
 
         private void ThisAddIn_Startup(object sender, EventArgs e)
         {
             //MessageBox.Show("Startup called");
             LoadPolicy();
-            StartWatch();
+            if (!DISABLE_STARTWATCH)
+            {
+                StartWatch();
+            }
             this.Application.ItemSend += Application_ItemSend;
         }
 
@@ -101,10 +105,7 @@ namespace SendGuard
             {
                 if (File.Exists(UserPolicyPath)) return UserPolicyPath;
                 if (File.Exists(MachinePolicyPath)) return MachinePolicyPath;
-                var def = UserPolicyPath;
-                var dir = Path.GetDirectoryName(def);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                return def;
+                return UserPolicyPath; // Do not create the directory here
             }
         }
 
@@ -117,10 +118,20 @@ namespace SendGuard
                 if (File.Exists(path))
                 {
                     var json = File.ReadAllText(path);
-                    p = JsonConvert.DeserializeObject<Policy>(json);
+                    try
+                    {
+                        p = JsonConvert.DeserializeObject<Policy>(json);
+                    }
+                    catch (JsonException ex)
+                    {
+                        MessageBox.Show(
+                            $"Failed to parse policy file at:\n{path}\n\nError: {ex.Message}\n\n" +
+                            "The policy file will not be overwritten. Please fix the file manually.",
+                            "SendGuard Policy Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return; // Do not overwrite the file
+                    }
                 }
 
-                // If file missing, malformed, or rules missing/empty, create fail-safe policy and notify user
                 if (p == null || p.Targets == null || p.Targets.Count == 0)
                 {
                     p = new Policy
@@ -128,20 +139,23 @@ namespace SendGuard
                         FailSafeBlock = true,
                         Targets = new List<Target>() // empty rules
                     };
+                    if (!Directory.Exists(Path.GetDirectoryName(path)))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    }
                     File.WriteAllText(path, p.ToJsonIndented());
                     MessageBox.Show(
                         "SendGuard policy file is missing, malformed, or has no rules.\n\n" +
-                        "A new policy file has been created at:\n" + path +
-                        "\n\nPlease edit this file to add your allowed domains and extensions.\n\n" +
+                        $"A new policy file has been created at:\n{path}\n\n" +
+                        "Please edit this file to add your allowed domains and extensions.\n\n" +
                         "Until this is done, all outgoing emails will be blocked.",
                         "SendGuard Policy Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 p.Normalise();
                 _policy = p;
             }
-            catch
+            catch (System.Exception ex)
             {
-                // Always block if anything goes wrong
                 var path = PolicyPathInUse;
                 _policy = new Policy
                 {
@@ -150,9 +164,9 @@ namespace SendGuard
                 };
                 File.WriteAllText(path, _policy.ToJsonIndented());
                 MessageBox.Show(
-                    "SendGuard failed to load the policy file.\n\n" +
-                    "A new policy file has been created at:\n" + path +
-                    "\n\nPlease edit this file to add your allowed domains and extensions.\n\n" +
+                    $"SendGuard failed to load the policy file.\n\nError: {ex.Message}\n\n" +
+                    $"A new policy file has been created at:\n{path}\n\n" +
+                    "Please edit this file to add your allowed domains and extensions.\n\n" +
                     "Until this is done, all outgoing emails will be blocked.",
                     "SendGuard Policy Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -195,7 +209,7 @@ namespace SendGuard
         {
             try
             {
-                var ae = r == null ? null : r.AddressEntry;
+                var ae = r?.AddressEntry;
                 if (ae == null) return null;
 
                 var exUser = ae.GetExchangeUser();
@@ -211,15 +225,26 @@ namespace SendGuard
 
                 const string PR_SMTP_ADDRESS = "http://schemas.microsoft.com/mapi/proptag/0x39FE001E";
                 var pa = ae.PropertyAccessor;
-                return pa == null ? null : pa.GetProperty(PR_SMTP_ADDRESS) as string;
+                return pa?.GetProperty(PR_SMTP_ADDRESS) as string;
             }
-            catch { return null; }
+            catch (System.Exception ex)
+            {
+                LogError("Failed to resolve SMTP address for recipient.", ex);
+                return null;
+            }
         }
 
         private void InternalStartup()
         {
             this.Startup += new System.EventHandler(ThisAddIn_Startup);
             this.Shutdown += new System.EventHandler(ThisAddIn_Shutdown);
+        }
+
+        private static void LogError(string message, System.Exception ex = null)
+        {
+            var logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SendGuard", "error.log");
+            var logMessage = $"{DateTime.Now}: {message}\n{ex?.ToString()}\n\n";
+            File.AppendAllText(logPath, logMessage);
         }
     }
 

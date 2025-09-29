@@ -10,7 +10,7 @@ SendGuard is an Outlook Add-in for Microsoft Office, built with C# targeting .NE
 
 ## Configuration
 
-SendGuard uses a `policy.json` file to control allowed attachment types for specific recipient domains.
+SendGuard uses a `policy.json` file to control allowed attachment types for specific recipient domains. This targets recipient email addresses at the entire domain, not individual email addresses.
 
 **Config file locations:**
 - Per-user: `%AppData%\SendGuard\policy.json`
@@ -31,11 +31,19 @@ If both files exist, the per-user file takes precedence.
 }
 ```
 
+This examples would set rules such that any email message going to any user at recipient.com, if there is are attachments, they must all have extensions of either `.gpg`, `.pgp`, or `.asc`. If there are attachments of any other extension, the message will be blocked. Messages without attachments are always allowed.
+
+The extensions are not case sensitive.
+
+If the configuration file is missing, malformed, or have empty rules, all messages are blocked.
+
+After editing the configuration file, restart Outlook to apply changes.
+
 ## Getting Started
 
 ### Prerequisites
 
-- Visual Studio 2019 or later
+- Visual Studio 2022 or later
 - .NET Framework 4.8
 - Microsoft Office Outlook
 
@@ -58,4 +66,4 @@ If both files exist, the per-user file takes precedence.
 
 ## License
 
-See LICENSE file (if present) for license information.
+MIT License. See `LICENSE` file for details.
