@@ -1,0 +1,52 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Bb]in/
+[Oo]bj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+
+# NuGet
+*.nupkg
+# The packages folder can be ignored because of Package Restore
+**/packages/*
+!**/packages/build/
+!**/packages/repositories.config
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Office Add-in
+*.vsto
+*.vstolog
+*.manifest
+*.pfx
+*.snk
+
+# Others
+_ReSharper*/
+*.resharper
+*.DotSettings.user
+*.orig
+*.bak
+
+# Test results
+TestResults/
+*.TestResults
+
+# NCrunch
+*.ncrunch*
+.*crunch*.local.xml
+
+# Rider
+.idea/
