@@ -1,6 +1,16 @@
 # SendGuard
 
-SendGuard is an Outlook Add-in for Microsoft Office, built with C# targeting .NET Framework 4.8.
+SendGuard is an Outlook Add-in for Microsoft Office, built with C# targeting .NET Framework 4.8. It is designed to prevent accidental sending of unencrypted email attachments of certain types, by enforcing policies on email attachments based on recipient domains.
+
+## Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## Features
 
@@ -12,13 +22,14 @@ SendGuard is an Outlook Add-in for Microsoft Office, built with C# targeting .NE
 
 SendGuard uses a `policy.json` file to control allowed attachment types for specific recipient domains. This targets recipient email addresses at the entire domain, not individual email addresses.
 
-**Config file locations:**
+Config file locations:
+
 - Per-user: `%AppData%\SendGuard\policy.json`
 - Machine-wide: `%ProgramData%\SendGuard\policy.json`
 
 If both files exist, the per-user file takes precedence.
 
-**Example `policy.json`:**
+Example `policy.json`:
 
 ```
 {
@@ -63,7 +74,3 @@ After editing the configuration file, restart Outlook to apply changes.
 - `ThisAddIn.cs` - Main add-in logic
 - `ThisAddIn.Designer.cs` - Designer-generated code
 - `ThisAddIn.Designer.xml` - Designer metadata
-
-## License
-
-MIT License. See `LICENSE` file for details.
