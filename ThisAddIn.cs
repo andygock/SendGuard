@@ -35,6 +35,18 @@ namespace SendGuard
             var mail = item as Outlook.MailItem;
             if (mail == null) return;
 
+            // Only block all sends if policy is in fail-safe mode OR has no rules
+            if (_policy == null || _policy.Targets == null || _policy.Targets.Count == 0 ||
+                (_policy.FailSafeBlock && _policy.Targets.All(t => t.Exts == null || t.Exts.Count == 0)))
+            {
+                MessageBox.Show(
+                    "SendGuard is blocking all outgoing emails because the policy file is missing, malformed, or has no usable rules.\n\n" +
+                    "Please edit your policy file to add allowed domains and extensions.",
+                    "SendGuard Policy Enforcement", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                cancel = true;
+                return;
+            }
+
             // Resolve SMTPs of all recipients
             var recips = new List<string>();
             foreach (Recipient r in mail.Recipients)
@@ -101,28 +113,48 @@ namespace SendGuard
             try
             {
                 var path = PolicyPathInUse;
+                Policy p = null;
                 if (File.Exists(path))
                 {
                     var json = File.ReadAllText(path);
-                    var p = JsonConvert.DeserializeObject<Policy>(json);
-                    if (p == null) p = Policy.Default();
-                    p.Normalise();
-                    _policy = p;
+                    p = JsonConvert.DeserializeObject<Policy>(json);
                 }
-                else
+
+                // If file missing, malformed, or rules missing/empty, create fail-safe policy and notify user
+                if (p == null || p.Targets == null || p.Targets.Count == 0)
                 {
-                    _policy = Policy.Default();
-                    File.WriteAllText(path, _policy.ToJsonIndented());
+                    p = new Policy
+                    {
+                        FailSafeBlock = true,
+                        Targets = new List<Target>() // empty rules
+                    };
+                    File.WriteAllText(path, p.ToJsonIndented());
+                    MessageBox.Show(
+                        "SendGuard policy file is missing, malformed, or has no rules.\n\n" +
+                        "A new policy file has been created at:\n" + path +
+                        "\n\nPlease edit this file to add your allowed domains and extensions.\n\n" +
+                        "Until this is done, all outgoing emails will be blocked.",
+                        "SendGuard Policy Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
+                p.Normalise();
+                _policy = p;
             }
             catch
             {
-                // Fail-safe: block if configured to do so
+                // Always block if anything goes wrong
+                var path = PolicyPathInUse;
                 _policy = new Policy
                 {
                     FailSafeBlock = true,
-                    Targets = new List<Target> { new Target { Domain = "*", Exts = new List<string>() } }
+                    Targets = new List<Target>() // empty rules
                 };
+                File.WriteAllText(path, _policy.ToJsonIndented());
+                MessageBox.Show(
+                    "SendGuard failed to load the policy file.\n\n" +
+                    "A new policy file has been created at:\n" + path +
+                    "\n\nPlease edit this file to add your allowed domains and extensions.\n\n" +
+                    "Until this is done, all outgoing emails will be blocked.",
+                    "SendGuard Policy Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
