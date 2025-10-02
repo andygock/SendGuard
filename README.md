@@ -39,7 +39,7 @@ Example `policy.json`:
 }
 ```
 
-This example would set rules such that any email message going to any user at recipient.com, if there is are attachments, they must all have extensions of either `.gpg`, `.pgp`, or `.asc`. If there are attachments of any other extension, the message will be blocked. Messages without attachments are always allowed.
+This example would set rules such that any email message going to any user at `recipient.com`, if there are attachments, they must all have extensions of either `.gpg`, `.pgp`, or `.asc`. If there are attachments of any other extension, the message will be blocked. Messages without attachments are always allowed.
 
 The extensions are not case sensitive.
 
