@@ -103,8 +103,9 @@ namespace SendGuard
         {
             get
             {
-                if (File.Exists(UserPolicyPath)) return UserPolicyPath;
-                if (File.Exists(MachinePolicyPath)) return MachinePolicyPath;
+                // update: always use user path
+                //if (File.Exists(UserPolicyPath)) return UserPolicyPath;
+                //if (File.Exists(MachinePolicyPath)) return MachinePolicyPath;
                 return UserPolicyPath; // Do not create the directory here
             }
         }
