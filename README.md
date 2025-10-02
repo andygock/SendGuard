@@ -28,7 +28,7 @@ Config file location:
 
 Example `policy.json`:
 
-```
+```json
 {
   "failSafeBlock": true,
   "targets": [
