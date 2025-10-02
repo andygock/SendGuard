@@ -52,3 +52,8 @@ TestResults/
 .idea/
 
 publish/
+
+# custom policy for installer
+NSIS/policy.user.json
+NSIS/*.bak
+NSIS/*.exe

@@ -1,0 +1,8 @@
+{
+  "failSafeBlock": true,
+  "targets": [
+    { "domain": "recipient.com", "exts": [".gpg", ".pgp", ".asc"] },
+    { "domain": "secure.example.au", "exts": [".gpg"] },
+    { "domain": "*.partner.local", "exts": [".gpg", ".pgp"] }
+  ]
+}
