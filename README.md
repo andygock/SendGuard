@@ -69,6 +69,43 @@ After editing the configuration file, restart Outlook to apply changes.
 
 - Build and run the project in Visual Studio with Outlook installed.
 
+## NSIS Installer
+
+The project includes an NSIS-based installer script located at `NSIS/installer.nsi`. This script generates a Windows installer executable: `SendGuard-UserSetup.exe`.
+
+### Installer Features
+
+- Installs SendGuard add-in files to `%LocalAppData%\SendGuard`.
+- Copies all necessary files from `bin/Release` (DLLs, .vsto, manifests).
+- Ensures the target directory exists.
+- Checks if Outlook is running and prompts the user to close it before installation.
+- Displays a license agreement from `NSIS/license.txt`.
+- Handles policy configuration files:
+  - If `%AppData%\SendGuard\policy.json` does not exist, installs the default `policy.json`.
+  - If a custom `policy.user.json` is present in the installer directory, it will be installed as `policy.json` for user-specific policies.
+  - If `policy.json` already exists, it is not overwritten.
+
+### Policy Files
+
+- `NSIS/policy.json`: Default policy configuration installed if no user policy exists.
+- `NSIS/policy.user.json`: Optional custom policy for user-specific installations.
+
+### License
+
+The installer displays the license from `NSIS/license.txt` during installation.
+
+### Usage
+
+Compile the plugin as Release in Visual Studio (not Debug).
+
+To build the installer, use NSIS to compile `NSIS/installer.nsi`. The output will be `SendGuard-UserSetup.exe`.
+
+To install:
+1. Run `SendGuard-UserSetup.exe`.
+2. Follow the prompts to accept the license and complete installation.
+3. The installer will ensure Outlook is closed before proceeding.
+4. Policy files will be handled as described above.
+
 ## Project Structure
 
 - `ThisAddIn.cs` - Main add-in logic
