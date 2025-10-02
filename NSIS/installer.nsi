@@ -1,5 +1,6 @@
 ; NSIS 3.x
 SetCompressor /SOLID lzma
+ShowInstDetails show
 !define APPNAME "SendGuard"
 !define PROGID  "SendGuard"
 
@@ -22,12 +23,11 @@ PageEx license
   LicenseForceSelection checkbox
 PageExEnd
 
-Page custom ConfirmInstallPage
-
-Function ConfirmInstallPage
-  MessageBox MB_YESNO|MB_ICONQUESTION "Are you sure you want to install ${APPNAME}?" IDYES +2
-  Quit
-FunctionEnd
+; Page custom ConfirmInstallPage
+; Function ConfirmInstallPage
+;   MessageBox MB_YESNO|MB_ICONQUESTION "Are you sure you want to install ${APPNAME}?" IDYES +2
+;   Quit
+; FunctionEnd
 
 Section "Install (Per-User)"
   ; Check if Outlook is running
@@ -41,13 +41,15 @@ Section "Install (Per-User)"
 
   ; Per-user policy (create if missing)
   SetOutPath "$AppData\SendGuard"
+
   ; Ensure target directory exists
   IfFileExists "$AppData\SendGuard\*" +2 0
     CreateDirectory "$AppData\SendGuard"
   DetailPrint "Ensured $AppData\SendGuard directory exists."
 
   ; Only copy or write policy.json if it does not exist
-  IfFileExists "$AppData\SendGuard\policy.json" 0 +5
+  ; Use policy.user.json from installer directory if present, for installers with customised policies
+  IfFileExists "$AppData\SendGuard\policy.json" 0 +3
     DetailPrint "policy.json already exists, not overwritten."
     Goto PolicyDone
   IfFileExists "$EXEDIR\policy.user.json" 0 +3
@@ -55,6 +57,7 @@ Section "Install (Per-User)"
     Goto PolicyDone
   File "policy.json"
   DetailPrint "Default policy.json written successfully."
+
 PolicyDone:
 
   ; COM/VSTO registration under HKCU
@@ -69,7 +72,7 @@ PolicyDone:
   ; ExecWait 'certutil -user -addstore "TrustedPublisher" "$LocalAppData\${APPNAME}\publisher.cer"'
 
   ; Notify user to open Outlook after installation
-  MessageBox MB_ICONINFORMATION|MB_OK "Installation complete. Please open Microsoft Outlook to continue the setup and use the SendGuard add-in."
+  ; MessageBox MB_ICONINFORMATION|MB_OK "Installation complete. Please open Microsoft Outlook to continue the setup and use the SendGuard add-in."
 
   ; Write uninstaller
   WriteUninstaller "$LocalAppData\${APPNAME}\uninstall.exe"
@@ -79,6 +82,12 @@ PolicyDone:
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "UninstallString" "$LocalAppData\${APPNAME}\uninstall.exe"
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoRepair" 1
+
+  DetailPrint "${APPNAME} installed successfully."
+  DetailPrint "You can uninstall it via Control Panel or Settings."
+  DetailPrint "Please restart Outlook to enable the SendGuard add-in."
+  DetailPrint "You can customise rules and policies file at:"
+  DetailPrint "  $AppData\SendGuard\policy.json"
 SectionEnd
 
 Section "Uninstall"
