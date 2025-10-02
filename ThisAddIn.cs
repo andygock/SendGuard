@@ -15,16 +15,10 @@ namespace SendGuard
     {
         private static Policy _policy = Policy.Default();
         private FileSystemWatcher _watcher;
-        private const bool DISABLE_STARTWATCH = true; // Disable the StartWatch system
-
+        
         private void ThisAddIn_Startup(object sender, EventArgs e)
         {
-            //MessageBox.Show("Startup called");
             LoadPolicy();
-            if (!DISABLE_STARTWATCH)
-            {
-                StartWatch();
-            }
             this.Application.ItemSend += Application_ItemSend;
         }
 
@@ -96,8 +90,8 @@ namespace SendGuard
 
         private static readonly string UserPolicyPath =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SendGuard", "policy.json");
-        private static readonly string MachinePolicyPath =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SendGuard", "policy.json");
+        //private static readonly string MachinePolicyPath =
+        //    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SendGuard", "policy.json");
 
         private static string PolicyPathInUse
         {
