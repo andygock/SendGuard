@@ -14,7 +14,6 @@ namespace SendGuard
     public partial class ThisAddIn
     {
         private static Policy _policy = Policy.Default();
-        private FileSystemWatcher _watcher;
         
         private void ThisAddIn_Startup(object sender, EventArgs e)
         {
@@ -25,7 +24,6 @@ namespace SendGuard
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
             this.Application.ItemSend -= Application_ItemSend;
-            if (_watcher != null) _watcher.Dispose();
         }
 
         private void Application_ItemSend(object item, ref bool cancel)
@@ -166,21 +164,7 @@ namespace SendGuard
                     "SendGuard Policy Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
-        private void StartWatch()
-        {
-            var path = PolicyPathInUse;
-            var dir = Path.GetDirectoryName(path);
-            var file = Path.GetFileName(path);
-            _watcher = new FileSystemWatcher(dir, file);
-            _watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime | NotifyFilters.FileName;
-            _watcher.Changed += (s, e) => { try { LoadPolicy(); } catch { } };
-            _watcher.Created += (s, e) => { try { LoadPolicy(); } catch { } };
-            _watcher.Renamed += (s, e) => { try { LoadPolicy(); } catch { } };
-            _watcher.EnableRaisingEvents = true;
-        }
-
-        private static List<Target> MatchingTargets(IEnumerable<string> recipientSmtps)
+                private static List<Target> MatchingTargets(IEnumerable<string> recipientSmtps)
         {
             var hits = new List<Target>();
             foreach (var smtp in recipientSmtps)
@@ -304,25 +288,33 @@ namespace SendGuard
             Exts = new List<string>();
         }
 
+        // Normalize domain and extensions, and compile the wildcard regex.
         public void Normalise()
         {
+            // Normalize the domain by ensuring it is not null, trimming whitespace, and converting to lowercase.
             Domain = (Domain ?? string.Empty).Trim().ToLowerInvariant();
+
+            // Normalize the list of allowed extensions by removing duplicates and trimming whitespace.
             var norm = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var e in (Exts ?? new List<string>())) norm.Add(e.Trim());
+            foreach (var e in (Exts ?? new List<string>())) 
+                norm.Add(e.Trim());
             Exts = norm.ToList();
 
+            // If the domain is a wildcard ("*") or empty, create a regex that matches any domain.
             if (Domain == "*" || Domain.Length == 0)
             {
                 _wildcard = new Regex("^.*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
             }
+            // If the domain starts with "*.", treat it as a wildcard subdomain (e.g., "*.example.com").
             else if (Domain.StartsWith("*.", StringComparison.Ordinal))
             {
-                var root = Regex.Escape(Domain.Substring(2));
+                var root = Regex.Escape(Domain.Substring(2)); // Escape the root domain for regex safety.
                 _wildcard = new Regex(@"^[^.]+\." + root + "$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
             }
+            // Otherwise, treat the domain as an exact match (e.g., "example.com").
             else
             {
-                var exact = Regex.Escape(Domain);
+                var exact = Regex.Escape(Domain); // Escape the domain for regex safety.
                 _wildcard = new Regex("^" + exact + "$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
             }
         }
