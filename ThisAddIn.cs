@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Office.Interop.Outlook;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using Outlook = Microsoft.Office.Interop.Outlook;
 
 namespace SendGuard
@@ -14,7 +14,7 @@ namespace SendGuard
     public partial class ThisAddIn
     {
         private static Policy _policy = Policy.Default();
-        
+
         private void ThisAddIn_Startup(object sender, EventArgs e)
         {
             LoadPolicy();
@@ -31,76 +31,92 @@ namespace SendGuard
             var mail = item as Outlook.MailItem;
             if (mail == null) return;
 
-            // Only block all sends if policy is in fail-safe mode OR has no rules
-            if (_policy == null || _policy.Targets == null || _policy.Targets.Count == 0 ||
-                (_policy.FailSafeBlock && _policy.Targets.All(t => t.Exts == null || t.Exts.Count == 0)))
+            // If there are no attachments, the policy rules do not apply, so allow the send.
+            if (mail.Attachments.Count == 0) return;
+
+            // Fail-safe check: if policy is missing or has no rules in fail-safe mode, block all emails with attachments.
+            if (_policy == null || (_policy.FailSafeBlock && (_policy.Rules == null || _policy.Rules.Count == 0)))
             {
                 MessageBox.Show(
-                    "SendGuard is blocking all outgoing emails because the policy file is missing, malformed, or has no usable rules.\n\n" +
-                    "Please edit your policy file to add allowed domains and extensions.",
+                    "SendGuard is blocking this email because the policy file is missing or has no rules in fail-safe mode.\n\n" +
+                    "Please edit your policy file to add rules for sending attachments.",
                     "SendGuard Policy Enforcement", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 cancel = true;
                 return;
             }
 
             // Resolve SMTPs of all recipients
-            var recips = new List<string>();
+            var recipients = new List<string>();
             foreach (Recipient r in mail.Recipients)
             {
                 var smtp = SafeGetSmtp(r);
-                if (!string.IsNullOrEmpty(smtp)) recips.Add(smtp.ToLowerInvariant());
+                if (!string.IsNullOrEmpty(smtp)) recipients.Add(smtp.ToLowerInvariant());
             }
-            if (recips.Count == 0) return;
+            if (recipients.Count == 0) return;
 
-            // Match any policy targets
-            var hits = MatchingTargets(recips);
-            if (hits.Count == 0) return;            // no target domain → allow
-            if (mail.Attachments.Count == 0) return; // no attachments → allow
-
-            // Allowed extensions are the union across matched targets
-            var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var t in hits) foreach (var e in t.Exts) allowed.Add(e);
-
-            bool allOk = true;
-            var bad = new List<string>();
-            foreach (Outlook.Attachment a in mail.Attachments)
+            // Check each attachment against each recipient based on the ordered rules.
+            foreach (Outlook.Attachment attachment in mail.Attachments)
             {
-                var name = (a.FileName ?? string.Empty);
-                bool ok = allowed.Any(ext => name.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
-                if (!ok) { allOk = false; bad.Add(name); }
-            }
+                var attachmentName = attachment.FileName ?? string.Empty;
+                foreach (var recipient in recipients)
+                {
+                    bool? isAllowed = null;
+                    bool ruleMatched = false;
 
-            if (!allOk)
-            {
-                var hitList = string.Join(", ", hits.Select(h => h.Domain));
-                var badList = string.Join("\n  • ", bad);
-                MessageBox.Show(
-                    "Send blocked.\n\nRecipients match policy: " + hitList +
-                    "\nAllowed attachment extensions: " + string.Join(", ", allowed) +
-                    "\n\nThese attachments are not allowed:\n  • " + badList +
-                    "\n\nEncrypt to an approved format and try again.",
-                    "SendGuard", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                cancel = true;
+                    // Find the first matching rule and get its decision.
+                    foreach (var rule in _policy.Rules)
+                    {
+                        if (rule.Matches(recipient, attachmentName))
+                        {
+                            isAllowed = rule.Accept;
+                            ruleMatched = true;
+                            break; // First match wins.
+                        }
+                    }
+
+                    bool block = false;
+                    string reason = "";
+
+                    if (ruleMatched)
+                    {
+                        // An explicit rule was found. Block if it's an "accept: false" rule.
+                        if (!isAllowed.Value) // isAllowed will have a value if ruleMatched is true.
+                        {
+                            block = true;
+                            reason = $"Attachment '{attachmentName}' is explicitly blocked for recipient '{recipient}'.";
+                        }
+                    }
+                    else // No rule matched this combination.
+                    {
+                        // If in fail-safe mode, block anything not explicitly allowed.
+                        if (_policy.FailSafeBlock)
+                        {
+                            block = true;
+                            reason = $"Attachment '{attachmentName}' is not covered by any rule for recipient '{recipient}' (fail-safe mode).";
+                        }
+                    }
+
+                    if (block)
+                    {
+                        MessageBox.Show(
+                            "Send blocked due to a policy violation.\n\n" +
+                            reason +
+                            "\n\nReview your attachments or recipients and try again.",
+                            "SendGuard", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        cancel = true;
+                        return; // One violation is enough to stop the entire send.
+                    }
+                }
             }
+            // If we get here, all attachment/recipient pairs are allowed.
         }
 
         // ----- Policy load + watch -----
 
         private static readonly string UserPolicyPath =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SendGuard", "policy.json");
-        //private static readonly string MachinePolicyPath =
-        //    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SendGuard", "policy.json");
 
-        private static string PolicyPathInUse
-        {
-            get
-            {
-                // update: always use user path
-                //if (File.Exists(UserPolicyPath)) return UserPolicyPath;
-                //if (File.Exists(MachinePolicyPath)) return MachinePolicyPath;
-                return UserPolicyPath; // Do not create the directory here
-            }
-        }
+        private static string PolicyPathInUse => UserPolicyPath;
 
         private void LoadPolicy()
         {
@@ -121,27 +137,28 @@ namespace SendGuard
                             $"Failed to parse policy file at:\n{path}\n\nError: {ex.Message}\n\n" +
                             "The policy file will not be overwritten. Please fix the file manually.",
                             "SendGuard Policy Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return; // Do not overwrite the file
+                        return; // Do not overwrite the corrupted file.
                     }
                 }
 
-                if (p == null || p.Targets == null || p.Targets.Count == 0)
+                if (p == null || p.Rules == null)
                 {
                     p = new Policy
                     {
                         FailSafeBlock = true,
-                        Targets = new List<Target>() // empty rules
+                        Rules = new List<Rule>() // empty rules
                     };
-                    if (!Directory.Exists(Path.GetDirectoryName(path)))
+                    var dir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     {
-                        Directory.CreateDirectory(Path.GetDirectoryName(path));
+                        Directory.CreateDirectory(dir);
                     }
                     File.WriteAllText(path, p.ToJsonIndented());
                     MessageBox.Show(
                         "SendGuard policy file is missing, malformed, or has no rules.\n\n" +
-                        $"A new policy file has been created at:\n{path}\n\n" +
-                        "Please edit this file to add your allowed domains and extensions.\n\n" +
-                        "Until this is done, all outgoing emails will be blocked.",
+                        $"A new, empty policy file has been created at:\n{path}\n\n" +
+                        "Please edit this file to add your rules for sending attachments.\n\n" +
+                        "Because 'failSafeBlock' is true, all outgoing emails with attachments will be blocked until rules are added.",
                         "SendGuard Policy Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 p.Normalise();
@@ -153,34 +170,18 @@ namespace SendGuard
                 _policy = new Policy
                 {
                     FailSafeBlock = true,
-                    Targets = new List<Target>() // empty rules
+                    Rules = new List<Rule>() // empty rules
                 };
-                File.WriteAllText(path, _policy.ToJsonIndented());
-                MessageBox.Show(
-                    $"SendGuard failed to load the policy file.\n\nError: {ex.Message}\n\n" +
-                    $"A new policy file has been created at:\n{path}\n\n" +
-                    "Please edit this file to add your allowed domains and extensions.\n\n" +
-                    "Until this is done, all outgoing emails will be blocked.",
-                    "SendGuard Policy Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-                private static List<Target> MatchingTargets(IEnumerable<string> recipientSmtps)
-        {
-            var hits = new List<Target>();
-            foreach (var smtp in recipientSmtps)
-            {
-                var at = smtp.LastIndexOf('@');
-                var dom = at >= 0 ? smtp.Substring(at + 1) : smtp;
-
-                foreach (var t in _policy.Targets)
+                if (!string.IsNullOrEmpty(path))
                 {
-                    if (t.Matches(dom)) hits.Add(t);
+                    File.WriteAllText(path, _policy.ToJsonIndented());
                 }
+                MessageBox.Show(
+                    $"SendGuard failed to load or create the policy file.\n\nError: {ex.Message}\n\n" +
+                    "Until the issue is resolved, all outgoing emails with attachments will be blocked.",
+                    "SendGuard Policy Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogError("Failed to load or create policy file.", ex);
             }
-            // De-dup by domain string
-            var uniq = new Dictionary<string, Target>(StringComparer.OrdinalIgnoreCase);
-            foreach (var h in hits) if (!uniq.ContainsKey(h.Domain)) uniq[h.Domain] = h;
-            return uniq.Values.ToList();
         }
 
         // Resolve reliable SMTP per Microsoft interop guidance
@@ -221,9 +222,18 @@ namespace SendGuard
 
         private static void LogError(string message, System.Exception ex = null)
         {
-            var logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SendGuard", "error.log");
-            var logMessage = $"{DateTime.Now}: {message}\n{ex?.ToString()}\n\n";
-            File.AppendAllText(logPath, logMessage);
+            try
+            {
+                var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SendGuard");
+                if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+                var logPath = Path.Combine(logDir, "error.log");
+                var logMessage = $"{DateTime.Now}: {message}\n{ex?.ToString()}\n\n";
+                File.AppendAllText(logPath, logMessage);
+            }
+            catch
+            {
+                // Ignore errors during logging
+            }
         }
     }
 
@@ -234,22 +244,19 @@ namespace SendGuard
         [JsonProperty("failSafeBlock")]
         public bool FailSafeBlock { get; set; }
 
-        [JsonProperty("targets")]
-        public List<Target> Targets { get; set; }
+        [JsonProperty("rules")]
+        public List<Rule> Rules { get; set; }
 
         public Policy()
         {
             FailSafeBlock = true;
-            Targets = new List<Target>();
+            Rules = new List<Rule>();
         }
 
         public void Normalise()
         {
-            foreach (var t in Targets) t.Normalise();
-            if (Targets.Count == 0 && FailSafeBlock)
-            {
-                Targets.Add(new Target { Domain = "*", Exts = new List<string>() });
-            }
+            if (Rules == null) Rules = new List<Rule>();
+            foreach (var r in Rules) r.Normalise();
         }
 
         public string ToJsonIndented()
@@ -263,75 +270,66 @@ namespace SendGuard
             return new Policy
             {
                 FailSafeBlock = true,
-                Targets = new List<Target>
-                {
-                    new Target { Domain = "recipient.com", Exts = new List<string>{ ".gpg", ".pgp", ".asc" } }
-                }
+                Rules = new List<Rule>()
             };
         }
     }
 
-    public class Target : IEquatable<Target>
+    public class Rule
     {
-        [JsonProperty("domain")]
-        public string Domain { get; set; } // "example.com", "*.example.com", or "*"
+        [JsonProperty("to")]
+        public string To { get; set; }
 
-        [JsonProperty("exts")]
-        public List<string> Exts { get; set; }
+        [JsonProperty("attachment")]
+        public string Attachment { get; set; }
+
+        [JsonProperty("accept")]
+        public bool Accept { get; set; }
 
         [JsonIgnore]
-        private Regex _wildcard;
+        private Regex _toRegex;
+        [JsonIgnore]
+        private Regex _attachmentRegex;
 
-        public Target()
+        public Rule()
         {
-            Domain = string.Empty;
-            Exts = new List<string>();
+            To = string.Empty;
+            Attachment = string.Empty;
         }
 
-        // Normalize domain and extensions, and compile the wildcard regex.
         public void Normalise()
         {
-            // Normalize the domain by ensuring it is not null, trimming whitespace, and converting to lowercase.
-            Domain = (Domain ?? string.Empty).Trim().ToLowerInvariant();
+            To = (To ?? string.Empty).Trim();
+            Attachment = (Attachment ?? string.Empty).Trim();
 
-            // Normalize the list of allowed extensions by removing duplicates and trimming whitespace.
-            var norm = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var e in (Exts ?? new List<string>())) 
-                norm.Add(e.Trim());
-            Exts = norm.ToList();
-
-            // If the domain is a wildcard ("*") or empty, create a regex that matches any domain.
-            if (Domain == "*" || Domain.Length == 0)
-            {
-                _wildcard = new Regex("^.*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            }
-            // If the domain starts with "*.", treat it as a wildcard subdomain (e.g., "*.example.com").
-            else if (Domain.StartsWith("*.", StringComparison.Ordinal))
-            {
-                var root = Regex.Escape(Domain.Substring(2)); // Escape the root domain for regex safety.
-                _wildcard = new Regex(@"^[^.]+\." + root + "$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            }
-            // Otherwise, treat the domain as an exact match (e.g., "example.com").
-            else
-            {
-                var exact = Regex.Escape(Domain); // Escape the domain for regex safety.
-                _wildcard = new Regex("^" + exact + "$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            }
+            _toRegex = new Regex(GlobToRegex(To), RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            _attachmentRegex = new Regex(GlobToRegex(Attachment), RegexOptions.Compiled | RegexOptions.IgnoreCase);
         }
 
-        public bool Matches(string domain)
+        public bool Matches(string email, string attachmentName)
         {
-            return _wildcard != null && _wildcard.IsMatch(domain ?? string.Empty);
+            if (_toRegex == null || _attachmentRegex == null) return false;
+
+            return _toRegex.IsMatch(email ?? string.Empty) &&
+                   _attachmentRegex.IsMatch(attachmentName ?? string.Empty);
         }
 
-        public bool Equals(Target other)
+        private static string GlobToRegex(string glob)
         {
-            return other != null && string.Equals(Domain, other.Domain, StringComparison.OrdinalIgnoreCase);
-        }
+            if (string.IsNullOrEmpty(glob))
+            {
+                return "^$"; // Match empty string exactly
+            }
 
-        public override int GetHashCode()
-        {
-            return Domain == null ? 0 : Domain.ToLowerInvariant().GetHashCode();
+            // 1. Escape all special regex characters.
+            var regex = new StringBuilder(Regex.Escape(glob));
+
+            // 2. Un-escape the glob wildcards back to their regex equivalents.
+            regex.Replace(@"\*", ".*");
+            regex.Replace(@"\?", ".");
+
+            // 3. Anchor the pattern to match the whole string.
+            return $"^{regex}$";
         }
     }
 }

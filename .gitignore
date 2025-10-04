@@ -57,3 +57,5 @@ publish/
 NSIS/policy.user.json
 NSIS/*.bak
 NSIS/*.exe
+
+samples/*
