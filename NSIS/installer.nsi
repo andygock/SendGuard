@@ -43,20 +43,31 @@ Section "Install (Per-User)"
   SetOutPath "$AppData\SendGuard"
 
   ; Ensure target directory exists
-  IfFileExists "$AppData\SendGuard\*" +2 0
+  IfFileExists "$AppData\SendGuard\*" +3 0
     CreateDirectory "$AppData\SendGuard"
-  DetailPrint "Ensured $AppData\SendGuard directory exists."
+    DetailPrint "Created $AppData\SendGuard directory."
 
-  ; Only copy or write policy.json if it does not exist
-  ; Use policy.user.json from installer directory if present, for installers with customised policies
+  ; if policy.user.json exists in installer directory, offer to use it overwriting any existing policy.json
+  ; otherwise use policy.json from installer if policy.json does not already exist, do not overwrite existing policy.json in such case
+  IfFileExists "$EXEDIR\policy.user.json" 0 +5
+    IfFileExists "$AppData\SendGuard\policy.json" 0 +3
+      MessageBox MB_YESNO|MB_ICONQUESTION "$AppData\SendGuard\policy.json already exists. Do you want to overwrite this with custom policy.user.json?" IDYES +2
+      Goto PolicyDone
+      Goto WriteCustomPolicy
   IfFileExists "$AppData\SendGuard\policy.json" 0 +3
-    DetailPrint "policy.json already exists, not overwritten."
+    MessageBox MB_YESNO|MB_ICONQUESTION "$AppData\SendGuard\policy.json already exists. Do you want to overwrite this with sample policy from installer?" IDYES +2
     Goto PolicyDone
-  IfFileExists "$EXEDIR\policy.user.json" 0 +3
-    CopyFiles /SILENT "$EXEDIR\policy.user.json" "$AppData\SendGuard\policy.json"
-    Goto PolicyDone
+    Goto WriteDefaultPolicy
+
+WriteCustomPolicy:
+  CopyFiles /SILENT "$EXEDIR\policy.user.json" "$AppData\SendGuard\policy.json"
+  DetailPrint "Custom policy.user.json to $AppData\SendGuard\policy.json"
+  Goto PolicyDone
+
+WriteDefaultPolicy:
   File "policy.json"
-  DetailPrint "Default policy.json written successfully."
+  DetailPrint "Sample policy.json written to $AppData\SendGuard\policy.json"
+  Goto PolicyDone
 
 PolicyDone:
 
