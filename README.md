@@ -45,39 +45,36 @@ The policy file consists of a `failSafeBlock` flag and a list of `rules`.
 
 ### Example `policy.json`
 
-Note comments are included here for clarity but are not valid in actual JSON files. Do not use comments in your `policy.json`.
+Do not use comments in your `policy.json`.
 
 ```json
 {
-  // failSafeBlock: true means any attachment/recipient pair not explicitly allowed is blocked. Recommended for security.
   "failSafeBlock": true,
-
   "rules": [
-    // Explicitly block sending executables to anyone, anywhere.
-    // This rule is placed high to ensure it's checked before more permissive rules.
     { "to": "*", "attachment": "*.exe", "accept": false },
     { "to": "*", "attachment": "*.dll", "accept": false },
-
-    // Allow specific encrypted file types to an external partner domain. Block ALL other attachment types to that partner.
     { "to": "*@partner.com", "attachment": "*.gpg", "accept": true },
     { "to": "*@partner.com", "attachment": "*.pgp", "accept": true },
     { "to": "*@partner.com", "attachment": "*", "accept": false },
-
-    // Allow sending any ZIP file to the internal 'archive' team. Block all else.
     { "to": "archive@mycompany.local", "attachment": "*.zip", "accept": true },
     { "to": "archive@mycompany.local", "attachment": "*", "accept": false },
-
-    // Block sending these types of documents to anyone within the company, but allow all.
     { "to": "*@mycompany.local", "attachment": "*.docx", "accept": false },
     { "to": "*@mycompany.local", "attachment": "*.xlsx", "accept": false },
     { "to": "*@mycompany.local", "attachment": "*.pdf", "accept": false },
     { "to": "*@mycompany.local", "attachment": "*", "accept": true },
-
-    // Optional: Allow everything else by default, when not covered by previous rules, failSafeBlock will then have no effect.
     { "to": "*", "attachment": "*", "accept": true }
   ]
 }
 ```
+
+The rules perform the following:
+
+- Block all `.exe` and `.dll` files to anyone.
+- Allow `.gpg` and `.pgp` files to `*@partner.com`, but block all other attachments to that domain.
+- Allow `.zip` files to `archive@mycompany.local`, but block all other attachments to that address.
+- Block `.docx`, `.xlsx`, and `.pdf` files to anyone within `mycompany.local`, but allow all other attachments to that domain.
+- Allow all other attachments to all other recipients.
+- Because `failSafeBlock` is `true`, any attachment/recipient pair not explicitly allowed by the rules will be blocked. Because of the last rule, this has no effect in this specific example.
 
 This software does not include a GUI for editing the policy file. You must edit `policy.json` manually using a text editor ensuring valid JSON syntax.
 
