@@ -87,22 +87,24 @@ In a business environment, this file could be pushed out via group policy or oth
 Imagine you send an email with two attachments, `report.docx` and `installer.exe`, to `jane@mycompany.local` and `bob@partner.com`.
 
 1.  For `bob@partner.com` and `installer.exe`:
-    - The add-in checks the rules.
-    - Rule 5 (`"to": "*", "attachment": "*.exe", "accept": false`) is the first match.
-    - The action is `accept: false`.
+  - The add-in checks the rules.
+  - Rule 1 (`"to": "*", "attachment": "*.exe", "accept": false`) is the first match.
+  - The action is `accept: false`.
   - The entire email is immediately blocked. A message box appears explaining the violation. The send operation is cancelled.
 
 2.  If you remove `installer.exe` and try to send only `report.docx` to both recipients:
   - For `bob@partner.com` and `report.docx`:
-        - Rules 1 and 2 are skipped (filename doesn't match `*.gpg` or `*.pgp`).
-        - Rule 3 (`"to": "*@partner.com", "attachment": "*", "accept": false`) is a match.
-  - The email is blocked.
+    - Rules 1 and 2 are skipped (filename doesn't match `*.exe` or `*.dll`).
+    - Rules 3 and 4 are skipped (filename doesn't match `*.gpg` or `*.pgp`).
+    - Rule 5 (`"to": "*@partner.com", "attachment": "*", "accept": false`) is a match.
+    - The email is blocked.
   - For `jane@mycompany.local` and `report.docx`:
-        - Rules 1-5 are skipped.
-        - Rule 6 (`"to": "*@mycompany.local", "attachment": "*.docx", "accept": true`) is a match.
-        - This combination is allowed.
+    - Rules 1 and 2 are skipped (filename doesn't match `*.exe` or `*.dll`).
+    - Rules 3-6 are skipped (recipient doesn't match, or filename doesn't match).
+    - Rule 8 (`"to": "*@mycompany.local", "attachment": "*.docx", "accept": false`) is a match.
+    - The email is blocked.
 
-However, because the combination for `bob@partner.com` was blocked, the entire send operation fails. All attachments must be allowed for all recipients.
+Because at least one recipient/attachment combination was blocked, the entire send operation fails. All attachments must be allowed for all recipients.
 
 ### Important Notes
 
@@ -141,7 +143,7 @@ The project includes an NSIS-based installer script at `NSIS/installer.nsi`. Thi
 - Checks if Outlook is running and prompts the user to close it before installation.
 - Displays a license agreement from `NSIS/license.txt`.
 - Handles policy configuration files:
-  - If `%AppData%\SendGuard\policy.json` does not exist, it installs the default `NSIS/policy.json`.
+  - If `%AppData%\SendGuard\policy.json` does not exist, it installs the default sample [`NSIS/policy.json`](https://github.com/andygock/SendGuard/blob/master/NSIS/policy.json).
   - If a custom `policy.user.json` is present in the installer directory, it will be installed as `policy.json`.
   - If `policy.json` already exists, it is NOT overwritten.
 
