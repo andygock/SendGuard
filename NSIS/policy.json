@@ -1,8 +1,17 @@
 {
   "failSafeBlock": true,
-  "targets": [
-    { "domain": "recipient.com", "exts": [".gpg", ".pgp", ".asc"] },
-    { "domain": "secure.example.au", "exts": [".gpg"] },
-    { "domain": "*.partner.local", "exts": [".gpg", ".pgp"] }
+  "rules": [
+    { "to": "*", "attachment": "*.exe", "accept": false },
+    { "to": "*", "attachment": "*.dll", "accept": false },
+    { "to": "*@partner.com", "attachment": "*.gpg", "accept": true },
+    { "to": "*@partner.com", "attachment": "*.pgp", "accept": true },
+    { "to": "*@partner.com", "attachment": "*", "accept": false },
+    { "to": "archive@mycompany.local", "attachment": "*.zip", "accept": true },
+    { "to": "archive@mycompany.local", "attachment": "*", "accept": false },
+    { "to": "*@mycompany.local", "attachment": "*.docx", "accept": false },
+    { "to": "*@mycompany.local", "attachment": "*.xlsx", "accept": false },
+    { "to": "*@mycompany.local", "attachment": "*.pdf", "accept": false },
+    { "to": "*@mycompany.local", "attachment": "*", "accept": true },
+    { "to": "*", "attachment": "*", "accept": true }
   ]
 }

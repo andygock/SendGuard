@@ -23,7 +23,7 @@ SOFTWARE.
 
 ## Configuration
 
-SendGuard's behavior is controlled by a `policy.json` file. This file contains a list of rules that are processed sequentially from top to bottom. For every recipient and every attachment on an outgoing email, SendGuard checks the rules in order. **The first rule that matches the recipient/attachment pair determines the outcome.**
+SendGuard's behavior is controlled by a `policy.json` file. This file contains a list of rules that are processed sequentially from top to bottom. For every recipient and every attachment on an outgoing email, SendGuard checks the rules in order. The first rule that matches the recipient/attachment pair determines the outcome.
 
 - If the first matching rule has `"accept": true`, that specific attachment is allowed for that recipient.
 - If the first matching rule has `"accept": false`, the attachment is blocked, and the entire email is prevented from sending.
@@ -33,73 +33,86 @@ Config file location:
 
 - Per-user: `%AppData%\SendGuard\policy.json`
 
-### New `policy.json` Format
+### `policy.json` Format
 
-The policy file now consists of a `failSafeBlock` flag and a list of `rules`.
+The policy file consists of a `failSafeBlock` flag and a list of `rules`.
 
-- **`failSafeBlock`**: (boolean) If `true` (recommended default), any attachment/recipient combination that does not match an explicit `accept: true` rule will be blocked. This prevents accidental sends if your rules are not comprehensive. If `false`, anything not matching a rule is allowed.
-- **`rules`**: (array) An ordered list of rule objects. Each rule has three properties:
-  - **`to`**: A glob pattern to match against the recipient's full SMTP email address (e.g., `user@example.com`, `*@example.com`, `*@*.partner.local`).
-  - **`attachment`**: A glob pattern to match against the attachment's full filename (e.g., `report.docx`, `*.gpg`, `confidential-*.zip`).
-  - **`accept`**: A boolean value (`true` to allow, `false` to block).
+- `failSafeBlock`: (boolean) If `true` (recommended default), any attachment/recipient combination that does not match an explicit `accept: true` rule will be blocked. This prevents accidental sends if your rules are not comprehensive. If `false`, anything not matching a rule is allowed.
+- `rules`: (array) An ordered list of rule objects. Each rule has three properties:
+  - `to`: A glob pattern to match against the recipient's full SMTP email address (e.g., `user@example.com`, `*@example.com`, `*@*.partner.local`).
+  - `attachment`: A glob pattern to match against the attachment's full filename (e.g., `report.docx`, `*.gpg`, `confidential-*.zip`).
+  - `accept`: A boolean value (`true` to allow, `false` to block).
 
 ### Example `policy.json`
 
+Note comments are included here for clarity but are not valid in actual JSON files. Do not use comments in your `policy.json`.
+
 ```json
 {
+  // failSafeBlock: true means any attachment/recipient pair not explicitly allowed is blocked. Recommended for security.
   "failSafeBlock": true,
+
   "rules": [
-    // Rule 1 & 2: Allow specific encrypted file types to an external partner domain.
-    { "to": "*@partner.com", "attachment": "*.gpg", "accept": true },
-    { "to": "*@partner.com", "attachment": "*.pgp", "accept": true },
-
-    // Rule 3: Block ALL other attachment types to that partner. This is a crucial catch-all.
-    { "to": "*@partner.com", "attachment": "*", "accept": false },
-
-    // Rule 4: Allow sending any ZIP file to the internal 'archive' team.
-    { "to": "archive@mycompany.local", "attachment": "*.zip", "accept": true },
-
-    // Rule 5: Explicitly block sending executables to anyone, anywhere.
+    // Explicitly block sending executables to anyone, anywhere.
     // This rule is placed high to ensure it's checked before more permissive rules.
     { "to": "*", "attachment": "*.exe", "accept": false },
     { "to": "*", "attachment": "*.dll", "accept": false },
 
-    // Rule 6: Allow sending any document to anyone within the company.
-    { "to": "*@mycompany.local", "attachment": "*.docx", "accept": true },
-    { "to": "*@mycompany.local", "attachment": "*.xlsx", "accept": true },
-    { "to": "*@mycompany.local", "attachment": "*.pdf", "accept": true }
+    // Allow specific encrypted file types to an external partner domain. Block ALL other attachment types to that partner.
+    { "to": "*@partner.com", "attachment": "*.gpg", "accept": true },
+    { "to": "*@partner.com", "attachment": "*.pgp", "accept": true },
+    { "to": "*@partner.com", "attachment": "*", "accept": false },
+
+    // Allow sending any ZIP file to the internal 'archive' team. Block all else.
+    { "to": "archive@mycompany.local", "attachment": "*.zip", "accept": true },
+    { "to": "archive@mycompany.local", "attachment": "*", "accept": false },
+
+    // Block sending these types of documents to anyone within the company, but allow all.
+    { "to": "*@mycompany.local", "attachment": "*.docx", "accept": false },
+    { "to": "*@mycompany.local", "attachment": "*.xlsx", "accept": false },
+    { "to": "*@mycompany.local", "attachment": "*.pdf", "accept": false },
+    { "to": "*@mycompany.local", "attachment": "*", "accept": true },
+
+    // Optional: Allow everything else by default, when not covered by previous rules, failSafeBlock will then have no effect.
+    { "to": "*", "attachment": "*", "accept": true }
   ]
 }
 ```
+
+This software does not include a GUI for editing the policy file. You must edit `policy.json` manually using a text editor ensuring valid JSON syntax.
+
+No warranty is made about the implementation of the rules or their effectiveness. It is the user's responsibility to ensure the policy meets their security requirements by thoroughly testing them. [Report any bugs or issues](https://github.com/andygock/SendGuard/issues) via this GitHub repository and I will address them as time permits.
+
+In a business environment, this file could be pushed out via group policy or other configuration management tools to ensure compliance across all users who have the AddIn installed.
 
 ### How It Works: An Example
 
 Imagine you send an email with two attachments, `report.docx` and `installer.exe`, to `jane@mycompany.local` and `bob@partner.com`.
 
-1.  **For `bob@partner.com` and `installer.exe`**:
+1.  For `bob@partner.com` and `installer.exe`:
     - The add-in checks the rules.
     - Rule 5 (`"to": "*", "attachment": "*.exe", "accept": false`) is the first match.
     - The action is `accept: false`.
-    - **The entire email is immediately blocked.** A message box appears explaining the violation. The send operation is cancelled.
+  - The entire email is immediately blocked. A message box appears explaining the violation. The send operation is cancelled.
 
 2.  If you remove `installer.exe` and try to send only `report.docx` to both recipients:
-    - **For `bob@partner.com` and `report.docx`**:
+  - For `bob@partner.com` and `report.docx`:
         - Rules 1 and 2 are skipped (filename doesn't match `*.gpg` or `*.pgp`).
         - Rule 3 (`"to": "*@partner.com", "attachment": "*", "accept": false`) is a match.
-        - **The email is blocked.**
-    - **For `jane@mycompany.local` and `report.docx`**:
+  - The email is blocked.
+  - For `jane@mycompany.local` and `report.docx`:
         - Rules 1-5 are skipped.
         - Rule 6 (`"to": "*@mycompany.local", "attachment": "*.docx", "accept": true`) is a match.
         - This combination is allowed.
 
-However, because the combination for `bob@partner.com` was blocked, the entire send operation fails. **All attachments must be allowed for all recipients.**
+However, because the combination for `bob@partner.com` was blocked, the entire send operation fails. All attachments must be allowed for all recipients.
 
 ### Important Notes
 
-- Emails without attachments are **always allowed** and are not processed by SendGuard.
-- All matching (`to` and `attachment`) is **case-insensitive**.
+- Emails without attachments are always allowed and are not processed by SendGuard.
+- All matching (`to` and `attachment`) is case-insensitive.
 - If the configuration file is missing, malformed, or has empty rules, all messages with attachments will be blocked (assuming default `failSafeBlock: true`). A new, empty policy file will be created.
-- After editing `policy.json`, you must **restart Outlook** for the changes to take effect.
+- After editing `policy.json`, you must restart Outlook for the changes to take effect.
 
 ## Getting Started
 
@@ -133,7 +146,7 @@ The project includes an NSIS-based installer script at `NSIS/installer.nsi`. Thi
 - Handles policy configuration files:
   - If `%AppData%\SendGuard\policy.json` does not exist, it installs the default `NSIS/policy.json`.
   - If a custom `policy.user.json` is present in the installer directory, it will be installed as `policy.json`.
-  - **If `policy.json` already exists, it is NOT overwritten.**
+  - If `policy.json` already exists, it is NOT overwritten.
 
 ### Policy Files
 
@@ -142,7 +155,7 @@ The project includes an NSIS-based installer script at `NSIS/installer.nsi`. Thi
 
 ### Building the Installer
 
-- Build the project in **Release** configuration within Visual Studio.
+- Build the project in Release configuration within Visual Studio.
 - Install [NSIS (Nullsoft Scriptable Install System)](https://nsis.sourceforge.io/Download).
 - Right-click `NSIS/installer.nsi` and select "Compile NSIS Script".
 - The output, `SendGuard-UserSetup.exe`, will be created.
