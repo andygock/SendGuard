@@ -142,15 +142,12 @@ The project includes an NSIS-based installer script at `NSIS/installer.nsi`. Thi
 - Copies all necessary files from `bin/Release` (DLLs, .vsto, manifests).
 - Checks if Outlook is running and prompts the user to close it before installation.
 - Displays a license agreement from `NSIS/license.txt`.
-- Handles policy configuration files:
-  - If `%AppData%\SendGuard\policy.json` does not exist, it installs the default sample [`NSIS/policy.json`](https://github.com/andygock/SendGuard/blob/master/NSIS/policy.json).
-  - If a custom `policy.user.json` is present in the installer directory, it will be installed as `policy.json`.
-  - If `policy.json` already exists, it is NOT overwritten.
 
 ### Policy Files
 
-- `NSIS/policy.json`: A default policy configuration. It's recommended to ship this with an empty `rules` array and `failSafeBlock: true` to ensure a secure-by-default state, forcing the user to create their own rules.
-- `NSIS/policy.user.json`: An optional, pre-configured policy file that can be bundled with the installer for specific deployments.
+- `NSIS/policy.json`: A default sample policy configuration. For new installations, this file is copied to `%AppData%\SendGuard\policy.json` if no existing policy file is found. If an existing `policy.json` is present, installer will ask the user if they want to overwrite it with the sample policy from the installer.
+
+When the installer is run, if there is a `policy.user.json` next to the installer, it will use that instead of the default sample `policy.json`.
 
 ### Building the Installer
 

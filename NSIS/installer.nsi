@@ -51,11 +51,11 @@ Section "Install (Per-User)"
   ; otherwise use policy.json from installer if policy.json does not already exist, do not overwrite existing policy.json in such case
   IfFileExists "$EXEDIR\policy.user.json" 0 +5
     IfFileExists "$AppData\SendGuard\policy.json" 0 +3
-      MessageBox MB_YESNO|MB_ICONQUESTION "$AppData\SendGuard\policy.json already exists. Do you want to overwrite this with custom policy.user.json?" IDYES +2
+      MessageBox MB_YESNO|MB_ICONQUESTION "$AppData\SendGuard\policy.json already exists. Do you want to overwrite this with custom policy.user.json? You will lose your existing policies if you choose yes." IDYES +2
       Goto PolicyDone
       Goto WriteCustomPolicy
   IfFileExists "$AppData\SendGuard\policy.json" 0 +3
-    MessageBox MB_YESNO|MB_ICONQUESTION "$AppData\SendGuard\policy.json already exists. Do you want to overwrite this with sample policy from installer?" IDYES +2
+    MessageBox MB_YESNO|MB_ICONQUESTION "$AppData\SendGuard\policy.json already exists. Do you want to overwrite this with sample policy from installer? You will lose your existing policies if you choose yes." IDYES +2
     Goto PolicyDone
     Goto WriteDefaultPolicy
 
