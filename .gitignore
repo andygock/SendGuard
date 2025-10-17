@@ -59,3 +59,5 @@ NSIS/*.bak
 NSIS/*.exe
 
 samples/*
+
+NSIS/sign-installer.cmd

@@ -21,6 +21,16 @@ SOFTWARE.
 - Fail-safe mode to block any attachments not explicitly allowed
 - Seamless integration with the Outlook `ItemSend` event
 
+## Installation
+
+[Download the most recent release](https://github.com/andygock/SendGuard/releases) and run the `SendGuard-UserSetup-YYYYMMDD.exe` installer. This will install the add-in for the current user.
+
+You can also use the `/S` silent switch to perform a silent installation without user prompts.
+
+It will install the add-in files to `%LocalAppData%\SendGuard` and create the necessary registry entries to load the add-in in Outlook.
+
+It will copy a default `policy.json` file to `%AppData%\SendGuard\policy.json` if no existing policy file is found. If an existing `policy.json` is present, the installer will ask the user if they want to overwrite it with the sample policy from the installer. If there is a `policy.user.json` file next to the installer, it will use that instead of the default sample `policy.json`.
+
 ## Configuration
 
 SendGuard's behavior is controlled by a `policy.json` file. This file contains a list of rules that are processed sequentially from top to bottom. For every recipient and every attachment on an outgoing email, SendGuard checks the rules in order. The first rule that matches the recipient/attachment pair determines the outcome.
